@@ -1,33 +1,9 @@
+use crate::core::command::{Command, CommandHandler};
+use crate::core::{FromString, SerializeEnum};
 use bevy::math::Vec3;
 use bevy::prelude::{Camera3d, Query, Transform, With};
-use crate::core::{Action, SerializableEnum};
-use crate::core::input::{CommandHandler, Command};
-
-enum CameraAction {
-    CameraMove{ x: f32, y: f32, z: f32 },
-    CameraRotate,
-    CameraZoom,
-    CameraMoveTo{ x: f32, y: f32, z: f32 },
-    CameraLookAt{ x: f32, y: f32, z: f32 },
-    CameraReset,
-}
-
-impl SerializableEnum for CameraAction {
-    fn to_string(&self) -> &'static str {
-        todo!()
-    }
-
-    fn from_string(string: &str) -> Option<Self>
-    where
-        Self: Sized
-    {
-        todo!()
-    }
-}
-
-impl Action for CameraAction {
-
-}
+use std::any::Any;
+use std::fmt::Display;
 
 #[repr(u16)]
 enum CameraCommand {
@@ -43,27 +19,27 @@ enum CameraCommand {
     ZoomOut      = 0x1 << 7,
 }
 
-impl SerializableEnum for CameraCommand {
-    fn to_string(&self) -> &'static str {
-        match self {
-            CameraCommand::MoveForward  => "CameraMoveForward",
-            CameraCommand::MoveBackward => "CameraMoveBackward",
-            CameraCommand::MoveUp       => "CameraMoveUp",
-            CameraCommand::MoveDown     => "CameraMoveDown",
-            CameraCommand::MoveLeft     => "CameraMoveLeft",
-            CameraCommand::MoveRight    => "CameraMoveRight",
-            CameraCommand::RotateLeft   => "CameraRotateLeft",
-            CameraCommand::RotateRight  => "CameraRotateRight",
-            CameraCommand::ZoomIn       => "CameraZoomIn",
-            CameraCommand::ZoomOut      => "CameraZoomOut",
-        }
+impl Display for CameraCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
+            CameraCommand::MoveForward  => "camera.moveForward",
+            CameraCommand::MoveBackward => "camera.moveBackward",
+            CameraCommand::MoveUp       => "camera.moveUp",
+            CameraCommand::MoveDown     => "camera.moveDown",
+            CameraCommand::MoveLeft     => "camera.moveLeft",
+            CameraCommand::MoveRight    => "camera.moveRight",
+            CameraCommand::RotateLeft   => "camera.rotateLeft",
+            CameraCommand::RotateRight  => "camera.rotateRight",
+            CameraCommand::ZoomIn       => "camera.zoomIn",
+            CameraCommand::ZoomOut      => "camera.zoomOut",
+        };
+        write!(f, "{}", str)
     }
+}
 
-    fn from_string(string: &str) -> Option<Self>
-    where
-        Self: Sized
-    {
-        match string {
+impl FromString for CameraCommand {
+    fn from_string(s: &str) -> Option<Self> {
+        match s {
             "CameraMoveForward"  => Some(CameraCommand::MoveForward),
             "CameraMoveBackward" => Some(CameraCommand::MoveBackward),
             "CameraMoveUp"       => Some(CameraCommand::MoveUp),
@@ -79,8 +55,10 @@ impl SerializableEnum for CameraCommand {
     }
 }
 
-impl Command for CameraCommand {
+impl SerializeEnum for CameraCommand { }
 
+impl Command for CameraCommand {
+    fn as_any(&self) -> &dyn Any { self }
 }
 
 pub struct CameraSystem {
@@ -88,34 +66,6 @@ pub struct CameraSystem {
     forward_move : i8,
     up_move : i8,
     right_move : i8,
-}
-
-impl CommandHandler<CameraCommand> for CameraSystem {
-    fn handle(&mut self, commands: &Vec<CameraCommand>) {
-        let mut forward_move : i8 = 0;
-        let mut up_move : i8 = 0;
-        let mut right_move : i8 = 0;
-
-        for command in commands {
-            match command {
-                CameraCommand::MoveForward  => forward_move += 1,
-                CameraCommand::MoveBackward => forward_move -= 1,
-                CameraCommand::MoveUp       => up_move += 1,
-                CameraCommand::MoveDown     => up_move -= 1,
-                CameraCommand::MoveLeft     => right_move -= 1,
-                CameraCommand::MoveRight    => right_move += 1,
-                // CameraCommand::RotateLeft   => ,
-                // CameraCommand::RotateRight  => ,
-                // CameraCommand::ZoomIn       => ,
-                // CameraCommand::ZoomOut      => ,
-                _ => (),
-            }
-        }
-
-        self.forward_move = forward_move.clamp(-1, 1);
-        self.up_move = up_move.clamp(-1, 1);
-        self.right_move = right_move.clamp(-1, 1);
-    }
 }
 
 impl CameraSystem {
@@ -157,5 +107,33 @@ impl CameraSystem {
                 transform.translation += Vec3::new(0.0, self.up_move as f32 * self.speed * dt, 0.0);
             }
         }
+    }
+}
+
+impl CommandHandler<CameraCommand> for CameraSystem {
+    fn handle_command(&mut self, commands: &Vec<CameraCommand>) {
+        let mut forward_move : i8 = 0;
+        let mut up_move : i8 = 0;
+        let mut right_move : i8 = 0;
+
+        for command in commands {
+            match command {
+                CameraCommand::MoveForward  => forward_move += 1,
+                CameraCommand::MoveBackward => forward_move -= 1,
+                CameraCommand::MoveUp       => up_move += 1,
+                CameraCommand::MoveDown     => up_move -= 1,
+                CameraCommand::MoveLeft     => right_move -= 1,
+                CameraCommand::MoveRight    => right_move += 1,
+                // CameraCommand::RotateLeft   => ,
+                // CameraCommand::RotateRight  => ,
+                // CameraCommand::ZoomIn       => ,
+                // CameraCommand::ZoomOut      => ,
+                _ => (),
+            }
+        }
+
+        self.forward_move = forward_move.clamp(-1, 1);
+        self.up_move = up_move.clamp(-1, 1);
+        self.right_move = right_move.clamp(-1, 1);
     }
 }

@@ -1,14 +1,24 @@
-use std::fmt;
-use std::fmt::Formatter;
+use crate::core::command::Command;
+use crate::core::FromString;
 use bevy::input::ButtonInput;
 use bevy::prelude::{KeyCode, Res};
-use crate::core::{Serializable, SerializableEnum};
+use std::fmt;
+use std::fmt::{Display, Formatter};
 
 static KEY_BINDING_SEPARATOR: &str = " + ";
 
 trait KeyInput {
     fn is_pressed(&self, keys: &Res<ButtonInput<KeyCode>>) -> bool;
+}
+
+trait FromKey {
     fn from_keycode(key: KeyCode) -> Option<Self>
+    where
+        Self: Sized;
+}
+
+trait FromKeys {
+    fn from_inputs(keys: Vec<KeyCode>) -> Option<Self>
     where
         Self: Sized;
 }
@@ -61,12 +71,6 @@ enum Key {
     Tab,
 }
 
-impl fmt::Display for Key {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", SerializableEnum::to_string(self))
-    }
-}
-
 impl KeyInput for Key {
     fn is_pressed(&self, keys: &Res<ButtonInput<KeyCode>>) -> bool {
         match self {
@@ -117,7 +121,9 @@ impl KeyInput for Key {
             Key::Tab        => keys.pressed(KeyCode::Tab),
         }
     }
+}
 
+impl FromKey for Key {
     fn from_keycode(key: KeyCode) -> Option<Self>
     where
         Self: Sized
@@ -173,9 +179,9 @@ impl KeyInput for Key {
     }
 }
 
-impl SerializableEnum for Key {
-    fn to_string(&self) -> &'static str {
-        match self {
+impl Display for Key {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let s = match self {
             Key::A          => "A",
             Key::B          => "B",
             Key::C          => "C",
@@ -221,14 +227,15 @@ impl SerializableEnum for Key {
             Key::ArrowUp    => "ArrowUp",
             Key::ArrowDown  => "ArrowDown",
             Key::Tab        => "Tab",
-        }
+        };
+        write!(f, "{}", s)
     }
+}
 
-    fn from_string(string: &str) -> Option<Self>
-    where
-        Self: Sized
+impl FromString for Key {
+    fn from_string(s: &str) -> Option<Self>
     {
-        match string {
+        match s {
             "A"          =>  Some(Key::A),
             "B"          =>  Some(Key::B),
             "C"          =>  Some(Key::C),
@@ -286,21 +293,18 @@ enum Modifier {
     Super,
 }
 
-impl fmt::Display for Modifier {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", SerializableEnum::to_string(self))
-    }
-}
 impl KeyInput for Modifier {
     fn is_pressed(&self, keys: &Res<ButtonInput<KeyCode>>) -> bool {
         match self {
-            Modifier::Shift => keys.pressed(KeyCode::ShiftLeft)   || keys.pressed(KeyCode::ShiftRight),
-            Modifier::Ctrl  => keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight),
-            Modifier::Alt   => keys.pressed(KeyCode::AltLeft)     || keys.pressed(KeyCode::AltRight),
-            Modifier::Super => keys.pressed(KeyCode::SuperLeft)   || keys.pressed(KeyCode::SuperRight),
+            Modifier::Shift => keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight),
+            Modifier::Ctrl => keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight),
+            Modifier::Alt => keys.pressed(KeyCode::AltLeft) || keys.pressed(KeyCode::AltRight),
+            Modifier::Super => keys.pressed(KeyCode::SuperLeft) || keys.pressed(KeyCode::SuperRight),
         }
     }
+}
 
+impl FromKey for Modifier {
     fn from_keycode(key: KeyCode) -> Option<Self>
     where
         Self: Sized
@@ -315,25 +319,26 @@ impl KeyInput for Modifier {
     }
 }
 
-impl SerializableEnum for Modifier {
-    fn to_string(&self) -> &'static str {
-        match self {
+impl Display for Modifier {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let s = match self {
             Modifier::Shift => "Shift",
             Modifier::Ctrl  => "Ctrl",
             Modifier::Alt   => "Alt",
             Modifier::Super => "Super",
-        }
+        };
+        write!(f, "{}", s)
     }
+}
 
-    fn from_string(string: &str) -> Option<Self>
-    where
-        Self: Sized
+impl FromString for Modifier {
+    fn from_string(s: &str) -> Option<Self>
     {
-        match string {
-            "Shift" => Some(Self::Shift),
-            "Ctrl"  => Some(Self::Ctrl),
-            "Alt"   => Some(Self::Alt),
-            "Super" => Some(Self::Super),
+        match s {
+            "Shift" =>  Some(Modifier::Shift),
+            "Ctrl"  =>  Some(Modifier::Ctrl),
+            "Alt"   =>  Some(Modifier::Alt),
+            "Super" =>  Some(Modifier::Super),
             _ => None,
         }
     }
@@ -344,18 +349,14 @@ pub struct KeyBinding {
     modifiers: Vec<Modifier>,
 }
 
-impl fmt::Display for KeyBinding {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", Serializable::to_string(self))
+impl KeyInput for KeyBinding {
+    fn is_pressed(&self, keys: &Res<ButtonInput<KeyCode>>) -> bool {
+        self.modifiers.iter().all(|modifier| modifier.is_pressed(keys)) && self.key.is_pressed(keys)
     }
 }
 
-impl KeyBinding {
-    pub fn is_pressed(&self, keys: &Res<ButtonInput<KeyCode>>) -> bool {
-        self.modifiers.iter().all(|modifier| modifier.is_pressed(keys)) && self.key.is_pressed(keys)
-    }
-
-    pub fn from_keycodes(keys: Vec<KeyCode>) -> Option<Self> {
+impl FromKeys for KeyBinding {
+    fn from_inputs(keys: Vec<KeyCode>) -> Option<Self> {
         let mut key = None;
         let mut modifiers = Vec::new();
 
@@ -376,35 +377,30 @@ impl KeyBinding {
     }
 }
 
-impl Serializable for KeyBinding {
-    fn to_string(&self) -> String {
-        self.modifiers
-            .iter()
-            .map(|x| SerializableEnum::to_string(x))
-            .chain(std::iter::once(SerializableEnum::to_string(&self.key)))
-            .collect::<Vec<_>>()
-            .join(KEY_BINDING_SEPARATOR)
+impl Display for KeyBinding {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let mut s = String::new();
+        for modifier in &self.modifiers {
+            s.push_str(modifier.to_string().as_str());
+            s.push_str(KEY_BINDING_SEPARATOR);
+        }
+        s.push_str(self.key.to_string().as_str());
+        write!(f, "{}", s)
     }
+}
 
-    fn from_string(string: &str) -> Option<Self>
-    where
-        Self: Sized
-    {
-        let parts: Vec<&str> = string.split(KEY_BINDING_SEPARATOR).collect();
-        let key = parts
+impl FromString for KeyBinding {
+    fn from_string(s: &str) -> Option<Self> {
+        let mut words: Vec<&str> = s.split(KEY_BINDING_SEPARATOR).collect();
+        let key = words
             .last()
             .and_then(|&x| Key::from_string(x));
-        let modifiers: Vec<Modifier> = parts
+        let modifiers: Vec<Modifier> = words
             .iter()
-            .take(parts.len().saturating_sub(1))
             .filter_map(|&x| Modifier::from_string(x))
             .collect();
         key.map(|key| KeyBinding { key, modifiers })
     }
-}
-
-pub trait Command: SerializableEnum {
-
 }
 
 struct CommandBinding<T>
@@ -415,7 +411,7 @@ where
     bindings: Vec<KeyBinding>
 }
 
-impl<T> CommandBinding<T>
+impl<T> KeyInput for CommandBinding<T>
 where
     T: Command,
 {
@@ -424,9 +420,12 @@ where
     }
 }
 
-pub trait CommandHandler<T>
+impl<T> CommandBinding<T>
 where
     T: Command,
 {
-    fn handle(&mut self, commands: &Vec<T>);
+    fn new(action: T, bindings: Vec<KeyBinding>) -> Self {
+        Self { action, bindings }
+    }
 }
+

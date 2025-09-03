@@ -209,24 +209,31 @@ fn update_camera(
         let forward_xz = Vec3::new(forward.x, 0.0, forward.z).normalize_or_zero();
         let right_xz = Vec3::new(right.x, 0.0, right.z).normalize_or_zero();
 
+        let mut translation = transform.translation;
+
         // Apply camera movement based on movement flags
         if movement_flags & MOVE_FORWARD != 0 {
-            transform.translation += forward_xz * speed * dt;
+            translation += forward_xz * speed * dt;
         }
         if movement_flags & MOVE_BACKWARD != 0 {
-            transform.translation -= forward_xz * speed * dt;
+            translation -= forward_xz * speed * dt;
         }
         if movement_flags & MOVE_LEFT != 0 {
-            transform.translation -= right_xz * speed * dt;
+            translation -= right_xz * speed * dt;
         }
         if movement_flags & MOVE_RIGHT != 0 {
-            transform.translation += right_xz * speed * dt;
+            translation += right_xz * speed * dt;
         }
+
+        const SMOOTHNESS: f32 = 0.9;
+        transform.translation = transform.translation.lerp(translation, SMOOTHNESS);
+
 
         // Apply Y-axis camera rotation
         if y_rotation.abs() > f32::EPSILON {
-        transform.rotate_y(y_rotation * dt);
+            transform.rotate_y(y_rotation * dt);
         }
     }
 }
+
 
